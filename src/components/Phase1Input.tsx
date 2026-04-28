@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Upload, FileText, Briefcase, ArrowRight } from "lucide-react";
+import { Upload, FileText, Briefcase, ArrowRight, Loader2 } from "lucide-react";
 
 interface Phase1InputProps {
   jobDescription: string;
@@ -22,37 +22,66 @@ export default function Phase1Input({
 }: Phase1InputProps) {
   const [dragOverJD, setDragOverJD] = useState(false);
   const [dragOverResume, setDragOverResume] = useState(false);
+  const [parsingJD, setParsingJD] = useState(false);
+  const [parsingResume, setParsingResume] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
 
   const handleFileRead = useCallback(
-    (file: File, setter: (value: string) => void) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result;
-        if (typeof text === "string") {
-          setter(text);
+    async (file: File, setter: (value: string) => void, setParsingState: (v: boolean) => void) => {
+      const fileName = file.name.toLowerCase();
+
+      if (fileName.endsWith(".txt")) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const text = e.target?.result;
+          if (typeof text === "string") {
+            setter(text);
+          }
+        };
+        reader.readAsText(file);
+        return;
+      }
+
+      setParsingState(true);
+      setParseError(null);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/parse-file", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setParseError(data.error || "Failed to parse file");
+          return;
         }
-      };
-      reader.readAsText(file);
+        setter(data.text);
+      } catch {
+        setParseError("Failed to parse file. Please try pasting the text directly.");
+      } finally {
+        setParsingState(false);
+      }
     },
     []
   );
 
   const handleDrop = useCallback(
-    (e: React.DragEvent, setter: (value: string) => void) => {
+    (e: React.DragEvent, setter: (value: string) => void, setParsingState: (v: boolean) => void) => {
       e.preventDefault();
       const file = e.dataTransfer.files[0];
       if (file) {
-        handleFileRead(file, setter);
+        handleFileRead(file, setter, setParsingState);
       }
     },
     [handleFileRead]
   );
 
   const handleFileInput = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>, setter: (value: string) => void) => {
+    (e: React.ChangeEvent<HTMLInputElement>, setter: (value: string) => void, setParsingState: (v: boolean) => void) => {
       const file = e.target.files?.[0];
       if (file) {
-        handleFileRead(file, setter);
+        handleFileRead(file, setter, setParsingState);
       }
     },
     [handleFileRead]
@@ -92,7 +121,7 @@ export default function Phase1Input({
             onDragLeave={() => setDragOverJD(false)}
             onDrop={(e) => {
               setDragOverJD(false);
-              handleDrop(e, onJobDescriptionChange);
+              handleDrop(e, onJobDescriptionChange, setParsingJD);
             }}
           >
             <textarea
@@ -109,9 +138,10 @@ export default function Phase1Input({
                   type="file"
                   accept=".txt,.doc,.docx,.pdf"
                   className="hidden"
-                  onChange={(e) => handleFileInput(e, onJobDescriptionChange)}
+                  onChange={(e) => handleFileInput(e, onJobDescriptionChange, setParsingJD)}
                 />
               </label>
+              {parsingJD && <Loader2 className="w-3 h-3 animate-spin text-blue-500" />}
               <span className="text-xs text-gray-400">
                 {jobDescription.length} chars
               </span>
@@ -138,7 +168,7 @@ export default function Phase1Input({
             onDragLeave={() => setDragOverResume(false)}
             onDrop={(e) => {
               setDragOverResume(false);
-              handleDrop(e, onResumeChange);
+              handleDrop(e, onResumeChange, setParsingResume);
             }}
           >
             <textarea
@@ -155,9 +185,10 @@ export default function Phase1Input({
                   type="file"
                   accept=".txt,.doc,.docx,.pdf"
                   className="hidden"
-                  onChange={(e) => handleFileInput(e, onResumeChange)}
+                  onChange={(e) => handleFileInput(e, onResumeChange, setParsingResume)}
                 />
               </label>
+              {parsingResume && <Loader2 className="w-3 h-3 animate-spin text-emerald-500" />}
               <span className="text-xs text-gray-400">
                 {resume.length} chars
               </span>
@@ -193,6 +224,12 @@ export default function Phase1Input({
           )}
         </button>
       </div>
+
+      {parseError && (
+        <p className="text-center mt-3 text-sm text-red-600">
+          {parseError}
+        </p>
+      )}
 
       {!canSubmit && (jobDescription.length > 0 || resume.length > 0) && (
         <p className="text-center mt-3 text-sm text-amber-600">
