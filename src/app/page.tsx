@@ -1,101 +1,321 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useCallback } from "react";
+import { Rocket } from "lucide-react";
+import { WorkflowState } from "@/types";
+import PhaseIndicator from "@/components/PhaseIndicator";
+import Phase1Input from "@/components/Phase1Input";
+import Phase2Analysis from "@/components/Phase2Analysis";
+import Phase3Resume from "@/components/Phase3Resume";
+import Phase4LinkedIn from "@/components/Phase4LinkedIn";
+import Phase5ConnectionNote from "@/components/Phase5ConnectionNote";
+import Phase6Email from "@/components/Phase6Email";
+import Phase7FollowUp from "@/components/Phase7FollowUp";
+
+const INITIAL_STATE: WorkflowState = {
+  phase: 1,
+  jobDescription: "",
+  resume: "",
+  companyName: "",
+  analysis: null,
+  tailoredResume: null,
+  linkedInResearch: null,
+  connectionNote: null,
+  outreachEmail: null,
+  followUpEmail: null,
+  isLoading: false,
+  error: null,
+};
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [state, setState] = useState<WorkflowState>(INITIAL_STATE);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const setError = useCallback((error: string | null) => {
+    setState((prev) => ({ ...prev, error, isLoading: false }));
+  }, []);
+
+  const handlePhase1Submit = useCallback(async () => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobDescription: state.jobDescription,
+          resume: state.resume,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Analysis failed");
+      setState((prev) => ({
+        ...prev,
+        analysis: data,
+        phase: 2,
+        isLoading: false,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Analysis failed");
+    }
+  }, [state.jobDescription, state.resume, setError]);
+
+  const handlePhase2Proceed = useCallback(async () => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    try {
+      const res = await fetch("/api/tailor-resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobDescription: state.jobDescription,
+          resume: state.resume,
+          analysis: state.analysis,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Resume tailoring failed");
+      setState((prev) => ({
+        ...prev,
+        tailoredResume: data,
+        phase: 3,
+        isLoading: false,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Resume tailoring failed");
+    }
+  }, [state.jobDescription, state.resume, state.analysis, setError]);
+
+  const handlePhase3Proceed = useCallback(async () => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    try {
+      const res = await fetch("/api/research-linkedin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobDescription: state.jobDescription,
+          analysis: state.analysis,
+          companyName: state.companyName,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "LinkedIn research failed");
+      setState((prev) => ({
+        ...prev,
+        linkedInResearch: data,
+        phase: 4,
+        isLoading: false,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "LinkedIn research failed");
+    }
+  }, [state.jobDescription, state.analysis, state.companyName, setError]);
+
+  const handlePhase4Proceed = useCallback(async () => {
+    if (!state.linkedInResearch) return;
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    try {
+      const res = await fetch("/api/generate-connection-note", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recommendedContact: state.linkedInResearch.recommendedContact,
+          analysis: state.analysis,
+          tailoredResume: state.tailoredResume?.resume,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Connection note generation failed");
+      setState((prev) => ({
+        ...prev,
+        connectionNote: data,
+        phase: 5,
+        isLoading: false,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Connection note generation failed");
+    }
+  }, [state.linkedInResearch, state.analysis, state.tailoredResume, setError]);
+
+  const handlePhase5Proceed = useCallback(async () => {
+    if (!state.linkedInResearch) return;
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    try {
+      const res = await fetch("/api/generate-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recommendedContact: state.linkedInResearch.recommendedContact,
+          analysis: state.analysis,
+          tailoredResume: state.tailoredResume?.resume,
+          jobDescription: state.jobDescription,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Email generation failed");
+      setState((prev) => ({
+        ...prev,
+        outreachEmail: data,
+        phase: 6,
+        isLoading: false,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Email generation failed");
+    }
+  }, [state.linkedInResearch, state.analysis, state.tailoredResume, state.jobDescription, setError]);
+
+  const handlePhase6Proceed = useCallback(async () => {
+    if (!state.linkedInResearch) return;
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    try {
+      const res = await fetch("/api/generate-followup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recommendedContact: state.linkedInResearch.recommendedContact,
+          analysis: state.analysis,
+          tailoredResume: state.tailoredResume?.resume,
+          originalEmail: state.outreachEmail,
+          jobDescription: state.jobDescription,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Follow-up generation failed");
+      setState((prev) => ({
+        ...prev,
+        followUpEmail: data,
+        phase: 7,
+        isLoading: false,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Follow-up generation failed");
+    }
+  }, [state.linkedInResearch, state.analysis, state.tailoredResume, state.outreachEmail, state.jobDescription, setError]);
+
+  const handleRestart = useCallback(() => {
+    setState(INITIAL_STATE);
+  }, []);
+
+  const handlePhaseClick = useCallback((phase: number) => {
+    setState((prev) => ({ ...prev, phase }));
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
+            <Rocket className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-gray-900">
+              Job Application Strategist
+            </h1>
+            <p className="text-xs text-gray-500">
+              AI-powered outreach workflow
+            </p>
+          </div>
         </div>
+      </header>
+
+      {/* Phase Indicator */}
+      <PhaseIndicator
+        currentPhase={state.phase}
+        onPhaseClick={handlePhaseClick}
+      />
+
+      {/* Error Banner */}
+      {state.error && (
+        <div className="max-w-5xl mx-auto px-4 mb-6">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+            <span className="text-red-600 font-medium text-sm flex-1">
+              {state.error}
+            </span>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-400 hover:text-red-600 text-sm"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Phase Content */}
+      <main className="pb-16">
+        {state.phase === 1 && (
+          <Phase1Input
+            jobDescription={state.jobDescription}
+            resume={state.resume}
+            onJobDescriptionChange={(v) =>
+              setState((prev) => ({ ...prev, jobDescription: v }))
+            }
+            onResumeChange={(v) =>
+              setState((prev) => ({ ...prev, resume: v }))
+            }
+            onSubmit={handlePhase1Submit}
+            isLoading={state.isLoading}
+          />
+        )}
+
+        {state.phase === 2 && state.analysis && (
+          <Phase2Analysis
+            analysis={state.analysis}
+            onProceed={handlePhase2Proceed}
+            isLoading={state.isLoading}
+          />
+        )}
+
+        {state.phase === 3 && state.tailoredResume && (
+          <Phase3Resume
+            tailoredResume={state.tailoredResume}
+            companyName={state.companyName}
+            onCompanyNameChange={(v) =>
+              setState((prev) => ({ ...prev, companyName: v }))
+            }
+            onProceed={handlePhase3Proceed}
+            isLoading={state.isLoading}
+          />
+        )}
+
+        {state.phase === 4 && state.linkedInResearch && (
+          <Phase4LinkedIn
+            research={state.linkedInResearch}
+            onProceed={handlePhase4Proceed}
+            isLoading={state.isLoading}
+          />
+        )}
+
+        {state.phase === 5 &&
+          state.connectionNote &&
+          state.linkedInResearch && (
+            <Phase5ConnectionNote
+              connectionNote={state.connectionNote}
+              recommendedContact={state.linkedInResearch.recommendedContact}
+              onProceed={handlePhase5Proceed}
+              isLoading={state.isLoading}
+            />
+          )}
+
+        {state.phase === 6 &&
+          state.outreachEmail &&
+          state.linkedInResearch && (
+            <Phase6Email
+              email={state.outreachEmail}
+              recommendedContact={state.linkedInResearch.recommendedContact}
+              onProceed={handlePhase6Proceed}
+              isLoading={state.isLoading}
+            />
+          )}
+
+        {state.phase === 7 &&
+          state.followUpEmail &&
+          state.linkedInResearch && (
+            <Phase7FollowUp
+              followUpEmail={state.followUpEmail}
+              recommendedContact={state.linkedInResearch.recommendedContact}
+              onRestart={handleRestart}
+            />
+          )}
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
