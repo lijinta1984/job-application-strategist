@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-// Import from lib directly to avoid pdf-parse's test-mode file read in index.js
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse/lib/pdf-parse.js");
+import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
 
 export async function POST(req: NextRequest) {
