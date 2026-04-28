@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import pdfParse from "pdf-parse";
+import { extractText, getDocumentProxy } from "unpdf";
 import mammoth from "mammoth";
 
 export async function POST(req: NextRequest) {
@@ -12,13 +12,15 @@ export async function POST(req: NextRequest) {
     }
 
     const fileName = file.name.toLowerCase();
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
     let text = "";
 
     if (fileName.endsWith(".pdf")) {
-      const pdfData = await pdfParse(buffer);
-      text = pdfData.text;
+      const pdf = await getDocumentProxy(new Uint8Array(arrayBuffer));
+      const result = await extractText(pdf, { mergePages: true });
+      text = result.text as string;
     } else if (fileName.endsWith(".docx")) {
       const result = await mammoth.extractRawText({ buffer });
       text = result.value;
